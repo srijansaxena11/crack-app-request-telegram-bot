@@ -87,6 +87,19 @@ def unauthorize(update, context):
     else:
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not the owner. This command can only be used by owner of the bot.')
 
+
+def listauthusers(update, context):
+    # if(is_allowed(update)):
+    f = open(authorized_users_file, "r")
+    authorized_users = f.readlines()
+    f.close()
+    authorized_users_list = ''
+    for authorized_user in authorized_users:
+        authorized_users_list += authorized_user+"\n"
+    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f'List of authorized users:\n{authorized_users_list}')
+    # else:
+    #     context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Who the f**k are you? You are not authorized.')    
+
 def info(update, context):
     if(is_allowed(update)):
         try:
@@ -315,6 +328,7 @@ def main():
     dp.add_handler(CommandHandler('help',help))
     dp.add_handler(CommandHandler('authorize',authorize))
     dp.add_handler(CommandHandler('unauthorize',unauthorize))
+    dp.add_handler(CommandHandler('listauthusers',listauthusers))
     dp.add_handler(CommandHandler('info',info))
     dp.add_handler(CommandHandler('request',request))
     dp.add_handler(CommandHandler('cracked',cracked))
