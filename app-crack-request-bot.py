@@ -48,7 +48,6 @@ def is_allowed(update):
     return allowed
 
 def is_topic_allowed(update):
-    # print(update)
     allowed = False
     if False: #is_owner(update) or is_allowed(update):
         allowed = True
