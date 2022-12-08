@@ -17,6 +17,7 @@ uncracked_requests_file = "uncracked.txt"
 authorized_users_file = "authorized_users.txt"
 authorized_topics_file = "authorized_topics.txt"
 
+
 def get_topic_id(update, context):
     if is_allowed(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic ID: `"+update.message.reply_to_message.message_id+"`", parse_mode=ParseMode.MARKDOWN)
@@ -54,7 +55,11 @@ def is_topic_allowed(update):
     else:
         if (update.message.chat.type == 'supergroup'):
             try:
-                topic_id = update.message.reply_to_message.message_id
+                if (update.message.reply_to_message != None):
+                    topic_id = update.message.reply_to_message.message_id
+                else:
+                    chat_id = update.message.chat.id
+                    topic_id = chat_id
                 f = open(authorized_topics_file, "r")
                 authorized_topics = f.readlines()
                 f.close()
@@ -92,9 +97,14 @@ def authorize(update, context):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not the owner. This command can only be used by owner of the bot.')
 
 def authorize_topic(update, context):
+    print(update)
     if(is_owner(update)):
         allowed = False
-        topic_id = update.message.reply_to_message.message_id
+        if (update.message.reply_to_message != None):
+            topic_id = update.message.reply_to_message.message_id
+        else:
+            chat_id = update.message.chat.id
+            topic_id = chat_id
         f = open(authorized_topics_file, "r")
         authorized_topics = f.readlines()
         f.close()
@@ -139,7 +149,11 @@ def unauthorize(update, context):
 def unauthorize_topic(update, context):
     if(is_owner(update)):
         allowed = False
-        topic_id = update.message.reply_to_message.message_id
+        if (update.message.reply_to_message != None):
+            topic_id = update.message.reply_to_message.message_id
+        else:
+            chat_id = update.message.chat.id
+            topic_id = chat_id
         f = open(authorized_topics_file, "r")
         authorized_topics = f.readlines()
         f.close()
@@ -385,12 +399,21 @@ def get_queued(update, context):
         queued_apps = f.readlines()
         f.close()
         queued_app_msg = ''
+        characters_count = 0
+        msg_sent_flag = False
         for queued_app in queued_apps:
             queued_app_name = queued_app.split('@@')[0].strip()
             queued_app_link = queued_app.split('@@')[1].strip()
             queued_app_msg += "`"+queued_app_name+"`: "+queued_app_link+"\n\n"
-
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are queued:\n"+queued_app_msg, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+            characters_count += len(queued_app_msg)
+            if (characters_count>9000):
+                context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are queued:\n"+queued_app_msg, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+                queued_app_msg = ''
+                characters_count = 0
+                msg_sent_flag = True
+        if (msg_sent_flag == False):
+            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are queued:\n"+queued_app_msg, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+        
     else:
         sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
         context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
@@ -403,13 +426,21 @@ def get_cracked(update, context):
         cracked_apps = f.readlines()
         f.close()
         cracked_app_msg = ''
+        characters_count = 0
+        msg_sent_flag = False
         for cracked_app in cracked_apps:
             cracked_app_name = cracked_app.split('@@')[0].strip()
             cracked_app_link = cracked_app.split('@@')[1].strip()
             crack_available_at_link = cracked_app.split('@@')[2].strip()
             cracked_app_msg += cracked_app_name+": "+crack_available_at_link+"\n\n"
-
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are cracked:\n"+cracked_app_msg, disable_web_page_preview=True)
+            characters_count += len(cracked_app_msg)
+            if (characters_count>9000):
+                context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are cracked:\n"+cracked_app_msg, disable_web_page_preview=True)
+                cracked_app_msg = ''
+                characters_count = 0
+                msg_sent_flag = True
+        if (msg_sent_flag == False):
+            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are cracked:\n"+cracked_app_msg, disable_web_page_preview=True)
     else:
         sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
 
@@ -419,12 +450,20 @@ def get_uncracked(update, context):
         uncracked_apps = f.readlines()
         f.close()
         uncracked_app_msg = ''
+        characters_count = 0
+        msg_sent_flag = False
         for uncracked_app in uncracked_apps:
             uncracked_app_name = uncracked_app.split('@@')[0].strip()
             uncracked_app_link = uncracked_app.split('@@')[1].strip()
             uncracked_app_msg += "`"+uncracked_app_name+"`: "+uncracked_app_link+"\n\n"
-
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps cannot be cracked:\n"+uncracked_app_msg, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+            characters_count += len(uncracked_app_msg)
+            if (characters_count>9000):
+                context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps cannot be cracked:\n"+uncracked_app_msg, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+                uncracked_app_msg = ''
+                characters_count = 0
+                msg_sent_flag = True
+        if (msg_sent_flag == False):
+            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are cracked:\n"+cracked_app_msg, disable_web_page_preview=True)
     else:
         sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
 
@@ -588,7 +627,7 @@ def main():
     dp.add_handler(CommandHandler('get_uncracked',get_uncracked))
     dp.add_handler(CommandHandler('remove',remove))
     dp.add_handler(CommandHandler('send',send))
-    dp.add_handler(MessageHandler(Filters.text, not_a_command))
+    dp.add_handler(MessageHandler(Filters.all, not_a_command))
 
     updater.start_polling()
     updater.idle()
