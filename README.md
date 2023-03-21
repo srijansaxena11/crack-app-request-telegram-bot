@@ -14,4 +14,4 @@ A telegram bot to request crack for apps
     ```pip install bs4```
 
 5. Run the bot using the following command:
-  ```python3 python3 app-crack-request-bot.py```
+  ```python3 app-crack-request-bot.py```
