@@ -9,7 +9,7 @@ A telegram bot to request crack for apps
 
     ```pip install python-telegram-bot```
 
-    ```pip insall requests```
+    ```pip install requests```
 
     ```pip install bs4```
 
