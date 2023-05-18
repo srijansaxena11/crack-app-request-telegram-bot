@@ -1,12 +1,11 @@
-from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters
-from telegram import ParseMode
 import requests
-from bs4 import BeautifulSoup
 import logging
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram import ParseMode
+from bs4 import BeautifulSoup
 from os.path import exists
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',level=logging.INFO)
-
 telegram_bot_token = ""
 owner_id = "" 
 
@@ -18,96 +17,76 @@ authorized_users_file = "authorized_users.txt"
 authorized_topics_file = "authorized_topics.txt"
 
 
+def in_authorized_file(id, file):
+    with open(file) as f:
+        authorized = f.readlines()
+    
+    for auth in authorized:
+        if int(id) == int(auth):
+            return True
+    else:
+        return False
+
+
 def get_topic_id(update, context):
     if is_allowed(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic ID: `"+update.message.reply_to_message.message_id+"`", parse_mode=ParseMode.MARKDOWN)
     else:
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
 
+
 def is_owner(update):
-    allowed = False
-    user = update.message.from_user
-    if user.id == int(owner_id):
-        allowed = True
-    return allowed
+    if update.message.from_user.id == int(owner_id):
+        return True
+    return False
+
 
 def is_allowed(update):
-    allowed = False
     if is_owner(update):
-        allowed = True
+        return True
     else:
-        user = update.message.from_user
-        user_id = user.id
-        username = user.username
-        f = open(authorized_users_file, "r")
-        authorized_users = f.readlines()
-        f.close()
-        for authorized_user in authorized_users:
-            if int(user_id) == int(authorized_user):
-                allowed = True
-                break
-    return allowed
+        return in_authorized_file(update.message.from_user.id, authorized_users_file)
+
 
 def is_topic_allowed(update):
-    allowed = False
-    if False: #is_owner(update) or is_allowed(update):
-        allowed = True
+    if update.message.chat.type == "supergroup":
+        try:
+            if update.message.reply_to_message:
+                topic_id = update.message.reply_to_message.message_id
+            else:
+                topic_id = update.message.chat.id
+            return in_authorized_file(topic_id, authorized_topics_file)
+        except:  # don't know what this is supposed to except, but a bare `except` statement is a bad idea.
+            return True
     else:
-        if (update.message.chat.type == 'supergroup'):
-            try:
-                if (update.message.reply_to_message != None):
-                    topic_id = update.message.reply_to_message.message_id
-                else:
-                    chat_id = update.message.chat.id
-                    topic_id = chat_id
-                f = open(authorized_topics_file, "r")
-                authorized_topics = f.readlines()
-                f.close()
-                for authorized_topic in authorized_topics:
-                    if int(topic_id) == int(authorized_topic):
-                        allowed = True
-                        break
-            except:
-                allowed = True
-        else:
-            allowed = True
-    return allowed
+        return True
+    return False
+
 
 def authorize(update, context):
-    if(is_owner(update)):
-        user = update.message.reply_to_message.from_user
-        user_id = user.id
-        username = user.username
-        allowed = False
-        f = open(authorized_users_file, "r")
-        authorized_users = f.readlines()
-        f.close()
-        for authorized_user in authorized_users:
-            if int(user_id) == int(authorized_user):
-                allowed = True
-                break
+    if is_owner(update):
+        user_id = update.message.reply_to_message.from_user.id
+        allowed = in_authorized_file(user_id, authorized_users_file)
         if allowed:
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User already authorized.')
+            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="User already authorized.")
         else:  
-            f = open(authorized_users_file, "a")
-            f.write(str(user_id)+"\n")
-            f.close()
+            with open(authorized_users_file, "a") as auff:
+                auff.write(str(user_id) + "\n")
             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User authorized.')
     else:
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not the owner. This command can only be used by owner of the bot.')
 
+
 def authorize_topic(update, context):
     print(update)
-    if(is_owner(update)):
+    if is_owner(update):
         allowed = False
-        if (update.message.reply_to_message != None):
+        if update.message.reply_to_message:
             topic_id = update.message.reply_to_message.message_id
         else:
-            chat_id = update.message.chat.id
-            topic_id = chat_id
-        f = open(authorized_topics_file, "r")
-        authorized_topics = f.readlines()
-        f.close()
+            topic_id = update.message.chat.id
+        with open(authorized_topics_file, "r") as atf:
+            authorized_topics = atf.readlines()
         for authorized_topic in authorized_topics:
             if int(topic_id) == int(authorized_topic):
                 allowed = True
@@ -354,7 +333,7 @@ def uncracked(update, context):
         except IndexError:
             uncracked_app_link = None
 
-        if uncracked_app_link != None:
+        if uncracked_app_link is not None:
             valid_link = True
             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking link and retrieving app name from it...")
             try:
@@ -365,7 +344,7 @@ def uncracked(update, context):
             except:
                 valid_link = False
 
-            if valid_link == True:
+            if valid_link:
                 context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Removing "+uncracked_app_name+" from queued list...")
                 f = open(queued_requests_file, "r")
                 queued_apps = f.readlines()
@@ -387,7 +366,7 @@ def uncracked(update, context):
                 f.close()
                 context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=uncracked_app_name+" added to uncracked/cra app list.")
             else:
-                sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Invalid link")
+                context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Invalid link")
         else:
             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="App link not found. Please provide the link of app which is cracked.")
     else:
@@ -411,7 +390,7 @@ def get_queued(update, context):
                 queued_app_msg = ''
                 characters_count = 0
                 msg_sent_flag = True
-        if (msg_sent_flag == False):
+        if not msg_sent_flag:
             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are queued:\n"+queued_app_msg, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
         
     else:
@@ -430,7 +409,6 @@ def get_cracked(update, context):
         msg_sent_flag = False
         for cracked_app in cracked_apps:
             cracked_app_name = cracked_app.split('@@')[0].strip()
-            cracked_app_link = cracked_app.split('@@')[1].strip()
             crack_available_at_link = cracked_app.split('@@')[2].strip()
             cracked_app_msg += cracked_app_name+": "+crack_available_at_link+"\n\n"
             characters_count += len(cracked_app_msg)
@@ -439,10 +417,10 @@ def get_cracked(update, context):
                 cracked_app_msg = ''
                 characters_count = 0
                 msg_sent_flag = True
-        if (msg_sent_flag == False):
+        if not msg_sent_flag:
             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are cracked:\n"+cracked_app_msg, disable_web_page_preview=True)
     else:
-        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
 
 def get_uncracked(update, context):
     if(is_topic_allowed(update)):
@@ -462,10 +440,10 @@ def get_uncracked(update, context):
                 uncracked_app_msg = ''
                 characters_count = 0
                 msg_sent_flag = True
-        if (msg_sent_flag == False):
+        if not msg_sent_flag:
             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Following apps are cracked:\n"+cracked_app_msg, disable_web_page_preview=True)
     else:
-        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
 
 def remove(update, context):
     if(is_allowed(update)):
@@ -475,7 +453,7 @@ def remove(update, context):
         except IndexError:
             app_link = None
 
-        if app_link != None:
+        if app_link is not None:
             queued_flag = False
             cracked_flag = False
             uncracked_flag = False
@@ -490,7 +468,7 @@ def remove(update, context):
             except:
                 valid_link = False
 
-            if valid_link == True:
+            if valid_link:
                 context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking "+app_name+" in queued list...")
                 f = open(queued_requests_file, "r")
                 queued_apps = f.readlines()
@@ -511,7 +489,7 @@ def remove(update, context):
                         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" removed from queued list.")
                         break
 
-                if queued_flag == False:
+                if not queued_flag:
                     context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" not found in queued list. Checking in cracked list...")
                     f = open(cracked_requests_file, "r")
                     cracked_apps = f.readlines()
@@ -532,7 +510,7 @@ def remove(update, context):
                             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" removed from cracked list.")
                             break
 
-                if queued_flag == False and cracked_flag == False:
+                if not queued_flag and not cracked_flag:
                     context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" not found in queued and cracked list. Checking in uncracked list...")
                     f = open(uncracked_requests_file, "r")
                     uncracked_apps = f.readlines()
@@ -554,60 +532,54 @@ def remove(update, context):
                             context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" removed from uncracked list.")
                             break
 
-                if queued_flag == False and cracked_flag == False and uncracked_flag == False:
+                if not queued_flag and not cracked_flag and not uncracked_flag:
                     context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" not found in any list. Nothing removed from anywhere. Please check again.")
                 
             else:
-                sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Invalid link")
+                context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Invalid link")
         else:
-            sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Link not found.")      
+            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Link not found.")      
     else:
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
 
 def start(update, context):
-    if(is_topic_allowed(update)):
+    if is_topic_allowed(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Use /help for list of commands")
     else:
-        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
 
 def help(update, context):
-    if(is_topic_allowed(update)):
+    if is_topic_allowed(update):
         help_msg = '1. authorize: /authorize (reply to user message to authorize the user)\n2. unauthorize: /unauthorize (reply to user message to unauthorize the user)\n3. listauthusers: /listauthusers\n4. authorize_topic: /authorize_topic\n5. unauthorize_topic: /unauthorize_topic\n6. listauthtopics: /listauthtopics\n7. info: /info (reply to user message to get user info)\n8. request: /request <link of app from app store>\n9. get_queued: /get_queued\n10. get_cracked: /get_cracked\n11. get_uncracked: /get_uncracked\n12. cracked: /cracked <link of app from app store> <link where crack is uploaded>\n13. uncracked: /uncracked <link of app from app store>'
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=help_msg)
     else:
-        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
 
 def send(update, context):
-    if(is_allowed(update)):
-        print("")
+    if is_allowed(update):
+        pass
     else:
         sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
         context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
         context.bot.deleteMessage (message_id = sent_message.message_id, chat_id = update.message.chat_id)
 
 def not_a_command(update, context):
-    if(is_owner(update) == False):
-        if(is_topic_allowed(update)):
+    if not is_owner(update) and is_topic_allowed(update):
             sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Not a command")
-            context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
-            context.bot.deleteMessage (message_id = sent_message.message_id, chat_id = update.message.chat_id)
+            context.bot.deleteMessage(message_id = update.message.message_id, chat_id = update.message.chat_id)
+            context.bot.deleteMessage(message_id = sent_message.message_id, chat_id = update.message.chat_id)
 
 def main():
-    if exists(queued_requests_file) == False:
-        f = open(queued_requests_file, "x")
-        f.close()
-    if exists(cracked_requests_file) == False:
-        f = open(cracked_requests_file, "x")
-        f.close()
-    if exists(uncracked_requests_file) == False:
-        f = open(uncracked_requests_file, "x")
-        f.close()
-    if exists(authorized_users_file) == False:
-        f = open(authorized_users_file, "x")
-        f.close()
-    if exists(authorized_topics_file) == False:
-        f = open(authorized_topics_file, "x")
-        f.close()
+    if not exists(queued_requests_file):
+        open(queued_requests_file, "x").close()
+    if not exists(cracked_requests_file):
+        open(cracked_requests_file, "x").close()
+    if not exists(uncracked_requests_file):
+        open(uncracked_requests_file, "x").close()
+    if not exists(authorized_users_file):
+        open(authorized_users_file, "x").close()
+    if not exists(authorized_topics_file):
+        open(authorized_topics_file, "x").close()
     updater = Updater(telegram_bot_token)
     dp = updater.dispatcher
     dp.add_handler(CommandHandler('start',start))
