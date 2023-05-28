@@ -228,7 +228,7 @@ def request(update, context):
             uncracked_flag = False
             valid_link = True
 
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking link and retrieving app name from it...")
+            message = context.bot.send_message(chat_id=update.message.chat_id, text="Checking link and retrieving app name from it...")
             try:
                 reqs = requests.get(requested_link)
                 soup = BeautifulSoup(reqs.text, 'html.parser')
@@ -238,14 +238,14 @@ def request(update, context):
                 valid_link = False
 
             if valid_link == True:
-                context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking if "+app_name+" has already been requested before...")
+                context.bot.edit_message_text(chat_id=update.message.chat_id, message_id=message.message_id, text="Checking if " + app_name + " has already been requested before...")
                 f = open(queued_requests_file, "r")
                 queued_apps = f.readlines()
                 f.close()
                 for queued_app in queued_apps:
                     queued_link = queued_app.split('@@')[1].strip()
                     if requested_link == queued_link:
-                        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" has already been queued. Please wait for it to be worked upon.")
+                        context.bot.edit_message_text(chat_id=update.message.chat_id, message_id=message.message_id, text=app_name + " has already been queued. Please wait for it to be worked upon.")
                         queued_flag = True
                         break
 
@@ -257,7 +257,7 @@ def request(update, context):
                         cracked_link = cracked_app.split('@@')[1].strip()
                         if requested_link == cracked_link:
                             crack_available_at_link = cracked_app.split('@@')[2].strip()
-                            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" has already been cracked. Please find the crack at: "+crack_available_at_link)
+                            context.bot.edit_message_text(chat_id=update.message.chat_id, message_id=message.message_id, text=app_name + " has already been cracked. Please find the crack at: " + crack_available_at_link)
                             cracked_flag = True
                             break
 
@@ -268,28 +268,24 @@ def request(update, context):
                     for uncracked_app in uncracked_apps:
                         uncracked_link = uncracked_app.split('@@')[1].strip()
                         if requested_link == uncracked_link:
-                            # cannot_be_cracked_reason = uncracked_app.split('@@')[2]
-                            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" cannot be cracked.")
+                            context.bot.edit_message_text(chat_id=update.message.chat_id, message_id=message.message_id, text=app_name + " cannot be cracked.")
                             uncracked_flag = True
                             break
 
                 if queued_flag == False and cracked_flag == False and uncracked_flag == False:
                     f = open(queued_requests_file, "a")
-                    f.write(app_name+"@@"+requested_link+"\n")
+                    f.write(app_name + "@@" + requested_link + "\n")
                     f.close()
-                    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" added to queue.")
+            
+                    context.bot.edit_message_text(chat_id=update.message.chat_id, message_id=message.message_id, text=app_name + " added to queue.")
             else:
                 sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Invalid link")
-                context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
-                context.bot.deleteMessage (message_id = sent_message.message_id, chat_id = update.message.chat_id)
+                context.bot.deleteMessage(message_id=update.message.message_id, chat_id=update.message.chat_id)
+                context.bot.deleteMessage(message_id=sent_message.message_id, chat_id=update.message.chat_id)
         else:
             sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Link not found")
-            context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
-            context.bot.deleteMessage (message_id = sent_message.message_id, chat_id = update.message.chat_id)
-    else:
-        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
-        context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
-        context.bot.deleteMessage (message_id = sent_message.message_id, chat_id = update.message.chat_id)
+            context.bot.deleteMessage(message_id=update.message.message_id, chat_id=update.message.chat_id)
+            context.bot.deleteMessage(message_id=sent_message.message_id, chat_id=update.message.chat_id)
 
 def cracked(update, context):
     if(is_allowed(update)):
