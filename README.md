@@ -7,11 +7,7 @@ A telegram bot to request crack for apps
 4. Assign your user id value to ```owner_id``` variable in the code.
 4. Install the required packages:
 
-    ```pip install python-telegram-bot```
-
-    ```pip install requests```
-
-    ```pip install bs4```
+    ```pip install -r requirements.txt```
 
 5. Run the bot using the following command:
   ```python3 app-crack-request-bot.py```
