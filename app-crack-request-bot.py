@@ -228,7 +228,7 @@ def request(update, context):
             uncracked_flag = False
             valid_link = True
 
-            message = context.bot.send_message(chat_id=update.message.chat_id, text="Checking link and retrieving app name from it...")
+            message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking link and retrieving app name from it...")
             try:
                 reqs = requests.get(requested_link)
                 soup = BeautifulSoup(reqs.text, 'html.parser')
