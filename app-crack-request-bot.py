@@ -1,16 +1,13 @@
-from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters
-from telegram import ParseMode
 import requests
-from bs4 import BeautifulSoup
 import logging
-from os.path import exists
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram import ParseMode
+from bs4 import BeautifulSoup
+
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',level=logging.INFO)
-
 telegram_bot_token = ""
-owner_id = "" 
-
-
+owner_id = ""
 queued_requests_file = "queued.txt"
 cracked_requests_file = "cracked.txt"
 uncracked_requests_file = "uncracked.txt"
@@ -18,201 +15,152 @@ authorized_users_file = "authorized_users.txt"
 authorized_topics_file = "authorized_topics.txt"
 
 
+def get_authorized_file(id, file):
+    with open(file, "r") as f:
+        for auth in f.readlines():
+            if int(auth) == int(id):
+                return True
+    return False
+
+
 def get_topic_id(update, context):
     if is_allowed(update):
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic ID: `"+update.message.reply_to_message.message_id+"`", parse_mode=ParseMode.MARKDOWN)
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f"Topic ID: `{update.message.reply_to_message.message_id}`", parse_mode=ParseMode.MARKDOWN)
     else:
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="You are not authorized to use this command.")
+
 
 def is_owner(update):
-    allowed = False
-    user = update.message.from_user
-    if user.id == int(owner_id):
-        allowed = True
-    return allowed
+    if update.message.from_user.id == int(owner_id):
+        return True
+    return False
+
 
 def is_allowed(update):
-    allowed = False
     if is_owner(update):
-        allowed = True
+        return True
     else:
-        user = update.message.from_user
-        user_id = user.id
-        username = user.username
-        f = open(authorized_users_file, "r")
-        authorized_users = f.readlines()
-        f.close()
-        for authorized_user in authorized_users:
-            if int(user_id) == int(authorized_user):
-                allowed = True
-                break
-    return allowed
+        return get_authorized_file(update.message.from_user.id, authorized_users_file)
+        
 
 def is_topic_allowed(update):
-    allowed = False
-    if False: #is_owner(update) or is_allowed(update):
-        allowed = True
-    else:
-        if (update.message.chat.type == 'supergroup'):
-            try:
-                if (update.message.reply_to_message != None):
-                    topic_id = update.message.reply_to_message.message_id
-                else:
-                    chat_id = update.message.chat.id
-                    topic_id = chat_id
-                f = open(authorized_topics_file, "r")
-                authorized_topics = f.readlines()
-                f.close()
-                for authorized_topic in authorized_topics:
-                    if int(topic_id) == int(authorized_topic):
-                        allowed = True
-                        break
-            except:
-                allowed = True
+    if update.message.chat.type == "supergroup":
+        if update.message.reply_to_message:
+            topic_id = update.message.reply_to_message.message_id
         else:
-            allowed = True
-    return allowed
+            topic_id = update.message.chat.id
+        return get_authorized_file(topic_id, authorized_topics_file)
+    else:
+        return True
+
 
 def authorize(update, context):
-    if(is_owner(update)):
-        user = update.message.reply_to_message.from_user
-        user_id = user.id
-        username = user.username
-        allowed = False
-        f = open(authorized_users_file, "r")
-        authorized_users = f.readlines()
-        f.close()
-        for authorized_user in authorized_users:
-            if int(user_id) == int(authorized_user):
-                allowed = True
-                break
-        if allowed:
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User already authorized.')
-        else:  
-            f = open(authorized_users_file, "a")
-            f.write(str(user_id)+"\n")
-            f.close()
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User authorized.')
-    else:
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not the owner. This command can only be used by owner of the bot.')
+    if not is_owner(update):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="You are not the owner. This command can only be used by owner of the bot.")
+        return
+    user_id = update.message.reply_to_message.from_user
+    if get_authorized_file(user_id, authorized_users_file):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User already authorized.')
+    else:  
+        with open(authorized_users_file, "a") as f:
+            f.write(f"{user_id}\n")
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User authorized.')
+
 
 def authorize_topic(update, context):
-    print(update)
-    if(is_owner(update)):
-        allowed = False
-        if (update.message.reply_to_message != None):
-            topic_id = update.message.reply_to_message.message_id
-        else:
-            chat_id = update.message.chat.id
-            topic_id = chat_id
-        f = open(authorized_topics_file, "r")
-        authorized_topics = f.readlines()
-        f.close()
-        for authorized_topic in authorized_topics:
-            if int(topic_id) == int(authorized_topic):
-                allowed = True
-                break
-        if allowed:
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic already authorized.')
-        else:  
-            f = open(authorized_topics_file, "a")
-            f.write(str(topic_id)+"\n")
-            f.close()
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic authorized.')
-    else:
+    if not is_owner(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not the owner. This command can only be used by owner of the bot.')
+        return
+
+    if update.message.reply_to_message:
+        topic_id = update.message.reply_to_message.message_id
+    else:
+        topic_id = update.message.chat_id
+
+    if get_authorized_file(topic_id, authorized_topics_file):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic already authorized.')
+    else:  
+        with open(authorized_topics_file, "a") as f:
+            f.write(f"{topic_id}\n")
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic authorized.')
+
 
 def unauthorize(update, context):
-    if(is_owner(update)):
-        user = update.message.reply_to_message.from_user
-        user_id = user.id
-        username = user.username
-        allowed = False
-        f = open(authorized_users_file, "r")
-        authorized_users = f.readlines()
-        f.close()
-        for authorized_user in authorized_users:
-            if int(user_id) == int(authorized_user):
-                allowed = True
-                break
-        if allowed:
-            f = open(authorized_users_file, "w")
-            for authorized_user in authorized_users:
-                if int(user_id) != int(authorized_user):
-                    f.write(authorized_user)
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User unauthorized.')
-        else:
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User not authorized.')
-    else:
+    if not is_owner(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not the owner. This command can only be used by owner of the bot.')
+        return
+    user_id = update.message.reply_to_message.from_user.id
+    if not get_authorized_file(user_id, authorized_users_file):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User not authorized.')
+        return
+    with open(authorized_users_file, "r") as auf:
+        authorized_users = auf.readlines()
+    with open(authorized_users_file, "w") as f:
+        f.writelines(auth for auth in authorized_users if int(auth.strip()) != int(user_id))
+    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='User unauthorized.')
+
 
 def unauthorize_topic(update, context):
-    if(is_owner(update)):
-        allowed = False
-        if (update.message.reply_to_message != None):
-            topic_id = update.message.reply_to_message.message_id
-        else:
-            chat_id = update.message.chat.id
-            topic_id = chat_id
-        f = open(authorized_topics_file, "r")
-        authorized_topics = f.readlines()
-        f.close()
-        for authorized_topic in authorized_topics:
-            if int(topic_id) == int(authorized_topic):
-                allowed = True
-                break
-        if allowed:
-            f = open(authorized_topics_file, "w")
-            for authorized_topic in authorized_topics:
-                if int(topic_id) != int(authorized_topic):
-                    f.write(authorized_topic)
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic unauthorized.')
-        else:
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic not authorized.')
-    else:
+    if not is_owner(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not the owner. This command can only be used by owner of the bot.')
+        return
+
+    if update.message.reply_to_message:
+        topic_id = update.message.reply_to_message.message_id
+    else:
+        topic_id = update.message.chat.id
+
+    if not get_authorized_file(topic_id, authorized_topics_file):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic not authorized.')
+        return
+
+    with open(authorized_topics_file, "r") as atfr:
+        authorized_topics = atfr.readlines()
+    with open(authorized_topics_file, "w") as atfw:
+        atfw.writelines(auth for auth in authorized_topics if int(auth.strip()) != int(topic_id))
+    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='Topic unauthorized.')
+        
 
 def listauthusers(update, context):
-    if(is_allowed(update)):
-        f = open(authorized_users_file, "r")
-        authorized_users = f.readlines()
-        f.close()
-        authorized_users_list = ''
-        for authorized_user in authorized_users:
-            authorized_users_list += authorized_user+"\n"
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f'List of authorized users:\n{authorized_users_list}')
-    else:
+    if not is_allowed(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
+        return
+
+    with open(authorized_users_file, "r") as f:
+        authorized_users_list = ""
+        for authorized_user in f.readlines():
+            authorized_users_list += f"{authorized_user}\n"
+
+    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f'List of authorized users:\n{authorized_users_list}')
+        
 
 def listauthtopics(update, context):
-    if(is_allowed(update)):
-        f = open(authorized_topics_file, "r")
-        authorized_topics = f.readlines()
-        f.close()
-        authorized_topics_list = ''
-        for authorized_topic in authorized_topics:
-            authorized_topics_list += authorized_topic+"\n"
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f'List of authorized topics:\n{authorized_topics_list}')
-    else:
+    if not is_allowed(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
+        return
+    with open(authorized_topics_file, "r") as f:
+        authorized_topics_list = ""
+        for authorized_topic in f.readlines():
+            authorized_topics_list += f"{authorized_topic}\n"
+    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f'List of authorized topics:\n{authorized_topics_list}')
+        
 
 def info(update, context):
-    if(is_allowed(update)):
-        try:
-            user = update.message.reply_to_message.from_user
-            user_id = user.id
-            is_user_bot = user.is_bot
-            user_first_name = user.first_name
-            user_last_name = user.last_name if user.last_name is not None else ''
-            user_username  = user.username if user.username is not None else ''
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, 
-                                     text=f'<b>User ID</b>: {user_id}\n<b>Is User Bot</b>: {is_user_bot}\n<b>User First Name</b>: {user_first_name}\n<b>User Last Name</b>: {user_last_name}\n<b>User username</b>: @{user_username}', 
-                                     parse_mode='HTML')
-        except:
-            chat_id = update.message.chat_id
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f'Current Chat ID: {chat_id}')
-    else:
+    if not is_allowed(update):
         context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
+        return
+    try:
+        user = update.message.reply_to_message.from_user
+        user_id = user.id
+        is_user_bot = user.is_bot
+        user_first_name = user.first_name
+        user_last_name = user.last_name if user.last_name else 'No last name detected'
+        user_username  = user.username if user.username else 'No username deteted'
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, 
+                                text=f'<b>User ID</b>: {user_id}\n<b>Is User Bot</b>: {is_user_bot}\n<b>User First Name</b>: {user_first_name}\n<b>User Last Name</b>: {user_last_name}\n<b>User username</b>: @{user_username}', 
+                                parse_mode='HTML')
+    except:
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=f'Current Chat ID: {update.message.chat_id}')
 
 def request(update, context):
     if(is_topic_allowed(update)):
@@ -464,27 +412,29 @@ def get_uncracked(update, context):
         sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
 
 def remove(update, context):
-    if(is_allowed(update)):
-        message_args = update.message.text.split(' ')
+    if not is_allowed(update):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
+        return
+    message_args = update.message.text.split(' ')
+    try:
+        app_link = message_args[1].strip()
+    except IndexError:
+        app_link = None
+
+    if app_link != None:
+        queued_flag = False
+        cracked_flag = False
+        uncracked_flag = False
+        valid_link = True
+
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking link and retrieving app name from it...")
         try:
-            app_link = message_args[1].strip()
-        except IndexError:
-            app_link = None
-
-        if app_link != None:
-            queued_flag = False
-            cracked_flag = False
-            uncracked_flag = False
-            valid_link = True
-
-            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking link and retrieving app name from it...")
-            try:
-                reqs = requests.get(app_link)
-                soup = BeautifulSoup(reqs.text, 'html.parser')
-                for title in soup.find_all('title'):
-                    app_name = title.get_text().replace(u'\xa0', u' ').strip().strip('\u200e')
-            except:
-                valid_link = False
+            reqs = requests.get(app_link)
+            soup = BeautifulSoup(reqs.text, 'html.parser')
+            for title in soup.find_all('title'):
+                app_name = title.get_text().replace(u'\xa0', u' ').strip().strip('\u200e')
+        except:
+            valid_link = False
 
             if valid_link == True:
                 context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Checking "+app_name+" in queued list...")
@@ -554,79 +504,61 @@ def remove(update, context):
                     context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=app_name+" not found in any list. Nothing removed from anywhere. Please check again.")
                 
             else:
-                sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Invalid link")
+                context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Invalid link")
         else:
-            sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Link not found.")      
-    else:
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
+            context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Link not found.")      
 
 def start(update, context):
-    if(is_topic_allowed(update)):
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Use /help for list of commands")
-    else:
-        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+    if not is_topic_allowed(update):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+        return
+    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Use /help for list of commands")
+        
 
 def help(update, context):
-    if(is_topic_allowed(update)):
-        help_msg = '1. authorize: /authorize (reply to user message to authorize the user)\n2. unauthorize: /unauthorize (reply to user message to unauthorize the user)\n3. listauthusers: /listauthusers\n4. authorize_topic: /authorize_topic\n5. unauthorize_topic: /unauthorize_topic\n6. listauthtopics: /listauthtopics\n7. info: /info (reply to user message to get user info)\n8. request: /request <link of app from app store>\n9. get_queued: /get_queued\n10. get_cracked: /get_cracked\n11. get_uncracked: /get_uncracked\n12. cracked: /cracked <link of app from app store> <link where crack is uploaded>\n13. uncracked: /uncracked <link of app from app store>'
-        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text=help_msg)
-    else:
-        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+    if not is_topic_allowed(update):
+        context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Topic not authorized")
+        return
+    context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='1. authorize: /authorize (reply to user message to authorize the user)\n2. unauthorize: /unauthorize (reply to user message to unauthorize the user)\n3. listauthusers: /listauthusers\n4. authorize_topic: /authorize_topic\n5. unauthorize_topic: /unauthorize_topic\n6. listauthtopics: /listauthtopics\n7. info: /info (reply to user message to get user info)\n8. request: /request <link of app from app store>\n9. get_queued: /get_queued\n10. get_cracked: /get_cracked\n11. get_uncracked: /get_uncracked\n12. cracked: /cracked <link of app from app store> <link where crack is uploaded>\n13. uncracked: /uncracked <link of app from app store>')
+        
 
 def send(update, context):
-    if(is_allowed(update)):
-        print("")
-    else:
+    if not is_allowed(update):
         sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text='You are not authorized to use this command.')
-        context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
-        context.bot.deleteMessage (message_id = sent_message.message_id, chat_id = update.message.chat_id)
+        context.bot.deleteMessage(message_id=update.message.message_id, chat_id=update.message.chat_id)
+        context.bot.deleteMessage(message_id=sent_message.message_id, chat_id=update.message.chat_id)
+        
 
 def not_a_command(update, context):
-    if(is_owner(update) == False):
-        if(is_topic_allowed(update)):
-            sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Not a command")
-            context.bot.deleteMessage (message_id = update.message.message_id, chat_id = update.message.chat_id)
-            context.bot.deleteMessage (message_id = sent_message.message_id, chat_id = update.message.chat_id)
+    if not is_owner(update) and is_topic_allowed(update):
+        sent_message = context.bot.send_message(chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id, text="Not a command")
+        context.bot.deleteMessage(message_id=update.message.message_id, chat_id=update.message.chat_id)
+        context.bot.deleteMessage(message_id=sent_message.message_id, chat_id=update.message.chat_id)
+    
 
-def main():
-    if exists(queued_requests_file) == False:
-        f = open(queued_requests_file, "x")
-        f.close()
-    if exists(cracked_requests_file) == False:
-        f = open(cracked_requests_file, "x")
-        f.close()
-    if exists(uncracked_requests_file) == False:
-        f = open(uncracked_requests_file, "x")
-        f.close()
-    if exists(authorized_users_file) == False:
-        f = open(authorized_users_file, "x")
-        f.close()
-    if exists(authorized_topics_file) == False:
-        f = open(authorized_topics_file, "x")
-        f.close()
+if __name__ == '__main__':
+    for file in (queued_requests_file, cracked_requests_file, uncracked_requests_file,authorized_users_file, authorized_topics_file):
+        open(file, "a").close()
     updater = Updater(telegram_bot_token)
     dp = updater.dispatcher
-    dp.add_handler(CommandHandler('start',start))
-    dp.add_handler(CommandHandler('help',help))
-    dp.add_handler(CommandHandler('authorize',authorize))
-    dp.add_handler(CommandHandler('authorize_topic',authorize_topic))
-    dp.add_handler(CommandHandler('unauthorize',unauthorize))
-    dp.add_handler(CommandHandler('unauthorize_topic',unauthorize_topic))
-    dp.add_handler(CommandHandler('listauthusers',listauthusers))
-    dp.add_handler(CommandHandler('listauthtopics',listauthtopics))
-    dp.add_handler(CommandHandler('info',info))
-    dp.add_handler(CommandHandler('request',request))
-    dp.add_handler(CommandHandler('cracked',cracked))
-    dp.add_handler(CommandHandler('uncracked',uncracked))
-    dp.add_handler(CommandHandler('get_queued',get_queued))
-    dp.add_handler(CommandHandler('get_cracked',get_cracked))
-    dp.add_handler(CommandHandler('get_uncracked',get_uncracked))
-    dp.add_handler(CommandHandler('remove',remove))
-    dp.add_handler(CommandHandler('send',send))
+    dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(CommandHandler('help', help))
+    dp.add_handler(CommandHandler('authorize', authorize))
+    dp.add_handler(CommandHandler('authorize_topic', authorize_topic))
+    dp.add_handler(CommandHandler('unauthorize', unauthorize))
+    dp.add_handler(CommandHandler('unauthorize_topic', unauthorize_topic))
+    dp.add_handler(CommandHandler('listauthusers', listauthusers))
+    dp.add_handler(CommandHandler('listauthtopics', listauthtopics))
+    dp.add_handler(CommandHandler('info', info))
+    dp.add_handler(CommandHandler('request', request))
+    dp.add_handler(CommandHandler('cracked', cracked))
+    dp.add_handler(CommandHandler('uncracked', uncracked))
+    dp.add_handler(CommandHandler('get_queued', get_queued))
+    dp.add_handler(CommandHandler('get_cracked', get_cracked))
+    dp.add_handler(CommandHandler('get_uncracked', get_uncracked))
+    dp.add_handler(CommandHandler('remove', remove))
+    dp.add_handler(CommandHandler('send', send))
     dp.add_handler(MessageHandler(Filters.all, not_a_command))
 
     updater.start_polling()
     updater.idle()
-
-if __name__ == '__main__':
-    main()
